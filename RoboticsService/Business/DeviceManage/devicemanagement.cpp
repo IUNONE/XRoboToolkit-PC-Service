@@ -1,4 +1,4 @@
-﻿#include <QCoreApplication>
+#include <QCoreApplication>
 #include <QSettings>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -244,7 +244,7 @@ void DeviceManagement::ReplySDKClient(const QString& uid, const TcpMessage& tcpM
 
 void DeviceManagement::setLocalUid()
 {
-    QSettings appSetting("setting.ini",QSettings::IniFormat);
+    QSettings appSetting(CommonUtils::settingsFilePath(),QSettings::IniFormat);
     //uid body
     QString uid = appSetting.value("DeviceControl/UID").toString();
     if(uid.size() == 0)

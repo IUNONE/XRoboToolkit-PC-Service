@@ -1,5 +1,13 @@
 # XRoboToolkit-PC-Service
 
+## Native macOS build
+
+The `macOS` branch adds a native, headless PC Service and C SDK build using system
+Qt/gRPC dependencies, selected automatically on macOS. Linux/Windows retain their
+legacy default and may opt into the same build. See [native build instructions](documents/macos-native-build.md)
+for dependencies, configuration, installation, testing and the separate Python-binding limitation.
+
+
 ## Project Overview
 XRoboToolkit-PC-Service is built upon an enterprise-level assistant application that includes multiple submodules and SDKs, developed using C++/Qt. The project aims to provide one-stop management and control services for VR teleoperated robots, including device management, data recording, demonstration, and control functionalities.
 

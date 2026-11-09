@@ -88,3 +88,7 @@ RoboticsService/PXREAClientSDKUnity/Bin/
 /RoboticsService/SDKDemo/CppSrc/RobotDataRecorder/build/
 /RoboticsService/SDKDemo/CppSrc/RobotDemoQt/build/
 /RoboticsService/Package/debPackAArch64/package_arm64/
+
+# Native tracking builds and staged installations
+/build/
+/install/

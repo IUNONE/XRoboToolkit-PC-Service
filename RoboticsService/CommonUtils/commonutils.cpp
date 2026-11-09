@@ -1,4 +1,4 @@
-﻿// Implementation of common utility functions for logging and network operations
+// Implementation of common utility functions for logging and network operations
 #include <QDebug>
 #include <QDir>
 #include <QByteArray>
@@ -6,6 +6,8 @@
 #include <QStringList>
 #include <QCoreApplication>
 #include <QSettings>
+#include <QStandardPaths>
+#include <QFileInfo>
 #include <QtNetwork>
 #include <QHostInfo>
 #include "commonutils.h"
@@ -22,6 +24,9 @@ void outputMessage(QtMsgType type, const QMessageLogContext &context, const QStr
     case QtDebugMsg:
         typeText = QString("Debug:");
         break;
+    case QtInfoMsg:
+        typeText = QString("Info:");
+        break;
     case QtWarningMsg:
         typeText = QString("Warning:");
         break;
@@ -35,12 +40,16 @@ void outputMessage(QtMsgType type, const QMessageLogContext &context, const QStr
 
     static QMutex mutex;
 
-    static bool logToFile = QSettings("setting.ini",QSettings::IniFormat).value("Log/logToFile", true).toBool();
+    static bool logToFile = QSettings(CommonUtils::settingsFilePath(),QSettings::IniFormat).value("Log/logToFile", true).toBool();
     if(logToFile)
     {
         mutex.lock();
         QFile file(CommonUtils::m_logPath);
-        file.open(QIODevice::WriteOnly | QIODevice::Append);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Append))
+        {
+            mutex.unlock();
+            return;
+        }
         QTextStream text_stream(&file);
         text_stream << QString("%1 %2 %3 %4 %5").arg(typeText).arg(QLocale("en_US").toString(QDateTime::currentDateTime(),"yyyy-MM-dd hh:mm:ss ddd")).arg(filePath.mid(filePath.lastIndexOf('\\')+1)).arg(context.line).arg(msg);
         file.close();
@@ -50,7 +59,7 @@ void outputMessage(QtMsgType type, const QMessageLogContext &context, const QStr
 
 QString getLogFilePath()
 {
-    QString logDir = QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation)[0] + "/PICOBusinessSuitData/log";
+    QString logDir = CommonUtils::runtimeDataDirectory() + "/log";
 
     if(!QDir(logDir).exists())
     {
@@ -121,84 +130,45 @@ void CommonUtils::installLogHandler()
     qInstallMessageHandler(outputMessage);
 }
 
+QString CommonUtils::settingsFilePath()
+{
+    const QString configured = qEnvironmentVariable("XRT_SERVICE_CONFIG_FILE");
+    if (!configured.isEmpty())
+        return QFileInfo(configured).absoluteFilePath();
+    return QCoreApplication::applicationDirPath() + "/setting.ini";
+}
+
+QString CommonUtils::runtimeDataDirectory()
+{
+    const QString configured = qEnvironmentVariable("XRT_RUNTIME_DIRECTORY");
+    if (!configured.isEmpty())
+        return QFileInfo(configured).absoluteFilePath();
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/PICOBusinessSuitData";
+}
+
 QStringList CommonUtils::getLocalIPv4AddressList()
 {
-    QStringList list;
-#ifdef WINDOWS_x86
-    QString localHostName = QHostInfo::localHostName();
-    QHostInfo info = QHostInfo::fromName(localHostName);
-    foreach(QHostAddress address, info.addresses())
+    QStringList addresses;
+    for (const QNetworkInterface& interface : QNetworkInterface::allInterfaces())
     {
-        if(address.protocol() == QAbstractSocket::IPv4Protocol)
-            list.append(address.toString());
-    }
-    return list;
-#endif
-#if defined(LINUX_x86) || defined(LINUX_aarch64)
-    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    foreach(QNetworkInterface inter, interfaces)
-    {
-        qDebug() << inter.humanReadableName() << Qt::endl;
-        if(inter.humanReadableName().indexOf("LOOPBACK", 0, Qt::CaseInsensitive) != -1
-            || inter.humanReadableName().indexOf("lo", 0, Qt::CaseInsensitive) != -1)
-        {
+        const auto flags = interface.flags();
+        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
+            || (flags & QNetworkInterface::IsLoopBack))
             continue;
-        }
-        else
+        for (const QNetworkAddressEntry& entry : interface.addressEntries())
         {
-            QList<QNetworkAddressEntry> entryList = inter.addressEntries();
-            foreach(QNetworkAddressEntry entry, entryList)
-            {
-                if(entry.ip().protocol() == QAbstractSocket::IPv4Protocol)
-                {
-                    list.append(entry.ip().toString());
-                }
-            }
-
+            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol && !entry.ip().isLoopback())
+                addresses.append(entry.ip().toString());
         }
     }
-    return list;
-#endif
+    addresses.removeDuplicates();
+    return addresses;
 }
 
 QString CommonUtils::getLocalIPv4Address()
 {
-#ifdef WINDOWS_x86
-    QString localHostName = QHostInfo::localHostName();
-    QHostInfo info = QHostInfo::fromName(localHostName);
-    foreach(QHostAddress address, info.addresses())
-    {
-        if(address.protocol() == QAbstractSocket::IPv4Protocol)
-            return address.toString();
-    }
-    qWarning() << "get local ipv4 failed!" << Qt::endl;
-    return "";
-#endif
-#if defined(LINUX_x86) || defined(LINUX_aarch64)
-    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    foreach(QNetworkInterface inter, interfaces)
-    {
-        qDebug() << inter.humanReadableName() << Qt::endl;
-        if(inter.humanReadableName().indexOf("LOOPBACK", 0, Qt::CaseInsensitive) != -1
-                || inter.humanReadableName().indexOf("lo", 0, Qt::CaseInsensitive) != -1)
-        {
-            continue;
-        }
-        else
-        {
-            QList<QNetworkAddressEntry> entryList = inter.addressEntries();
-            foreach(QNetworkAddressEntry entry, entryList)
-            {
-                if(entry.ip().protocol() == QAbstractSocket::IPv4Protocol)
-                {
-                    return entry.ip().toString();
-                }
-            }
-
-        }
-    }
-    return "";
-#endif
+    const auto addresses = getLocalIPv4AddressList();
+    return addresses.isEmpty() ? QString() : addresses.first();
 }
 
 bool CommonUtils::isOnline()

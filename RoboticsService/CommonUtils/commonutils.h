@@ -1,4 +1,4 @@
-﻿// Common utility class for logging and network operations
+// Common utility class for logging and network operations
 #ifndef COMMONUTILS_H
 #define COMMONUTILS_H
 
@@ -25,6 +25,8 @@ public slots:
         return (quint64)this;
     }
 
+    static QString settingsFilePath();
+    static QString runtimeDataDirectory();
     static void installLogHandler();
     static QString getLocalIPv4Address();
     static QStringList getLocalIPv4AddressList();

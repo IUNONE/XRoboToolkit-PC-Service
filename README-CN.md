@@ -1,5 +1,12 @@
 # RoboticsService 项目结构说明
 
+## macOS 原生构建
+
+`macOS` 分支新增使用本机 Qt/gRPC 依赖的服务与 C SDK 构建，macOS 自动选择；Linux/Windows
+保留原构建方式，也可显式选择同一原生构建路径。安装、运行、测试及 Python 绑定的范围说明见
+[原生构建文档](documents/macos-native-build.md)。
+
+
 ## 项目概述
 RoboticsService 是一个企业级助手应用程序，包含多个子模块和 SDK，采用 C++/Qt 开发。该项目旨在为VR遥操作机器人提供一站式的管理和控制服务，包括设备管理、数据记录、演示和控制等功能。
 

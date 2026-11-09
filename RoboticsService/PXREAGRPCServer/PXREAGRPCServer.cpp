@@ -1,11 +1,12 @@
-﻿#include <thread>
+#include "commonutils.h"
+#include <thread>
 #include <QDebug>
 #include <QMutex>
 #include <QSettings>
 #include "PXREAGRPCServer.h"
 void PXREAServerAPI::init(quint64 devMng, bool login, bool runAsService)
 {
-    QSettings settings("setting.ini", QSettings::IniFormat);
+    QSettings settings(CommonUtils::settingsFilePath(), QSettings::IniFormat);
     QString addr = settings.value("Service/listenAddr", "127.0.0.1").toString();
     QString port = settings.value("Service/listenPort", "60061").toString();
     QString listenStr= addr+":"+port;

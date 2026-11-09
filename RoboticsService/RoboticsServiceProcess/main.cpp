@@ -1,4 +1,4 @@
-﻿//Main entry point for the Enterprise Assistant Client application
+//Main entry point for the Enterprise Assistant Client application
 
 #include <QCoreApplication>
 #include <QTextCodec>
@@ -15,14 +15,6 @@
 #define STR(R) #R
 #define STRVALUE(R) STR(R)
 
-Q_DECLARE_METATYPE(QSharedPointer<QImage>)
-
-enum PlatformType
-{
-    WINDOWS_X86 = 0,
-    LINUX_X86,
-    LINUX_AARCH64
-};
 
 
 int main(int argc, char *argv[])
@@ -37,7 +29,7 @@ int main(int argc, char *argv[])
     CommonUtils::installLogHandler();
 #else
     qDebug() << "debug mode";
-    program = "./LoadingPorcessDebug.exe";
+
 #endif
 
     if(app.isStartUp())
@@ -59,17 +51,6 @@ int main(int argc, char *argv[])
     auto sdk = new PXREAServerAPI(&app);
 
 
-#ifdef WINDOWS_x86
-    quint32 platformType = WINDOWS_X86;
-#endif
-
-#ifdef LINUX_x86
-    quint32 platformType = LINUX_X86;
-#endif
-
-#ifdef LINUX_aarch64
-    quint32 platformType = LINUX_AARCH64;
-#endif
     DeviceManagement deviceManage;
     Business business;
     business.setDeviceManager(deviceManage.getThisPoint());

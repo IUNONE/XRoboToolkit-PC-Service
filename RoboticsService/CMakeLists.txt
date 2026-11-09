@@ -9,6 +9,17 @@ option(AUTO_BUILD_NUM "Command Line Argument" "")
 
 project(RoboticsServiceProject)
 
+# macOS must not fall through the historical UNIX == Linux packaging branches.
+# Linux/Windows may opt into the same native dependency build for development/CI.
+option(XRT_USE_SYSTEM_DEPENDENCIES "Build tracking service and SDK using installed Qt/gRPC" ${APPLE})
+if(XRT_USE_SYSTEM_DEPENDENCIES)
+    include(cmake/NativeTrackingBuild.cmake)
+    return()
+endif()
+if(APPLE)
+    message(FATAL_ERROR "macOS requires XRT_USE_SYSTEM_DEPENDENCIES=ON")
+endif()
+
 cmake_host_system_information(RESULT ISA_NAME QUERY OS_PLATFORM)
 message("OS_PLATFORM: ${ISA_NAME}")
 

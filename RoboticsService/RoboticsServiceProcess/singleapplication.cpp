@@ -1,8 +1,19 @@
-﻿//Implementation of single instance application management
+//Implementation of single instance application management
 
 #include <QStandardPaths>
+#include <QDir>
+#include <QCryptographicHash>
+#include "commonutils.h"
 #include "singleapplication.h"
 
+
+static QString localServerName()
+{
+    if (qEnvironmentVariableIsEmpty("XRT_RUNTIME_DIRECTORY"))
+        return QStringLiteral(SINGLE_APP_NAME);
+    return QStringLiteral(SINGLE_APP_NAME) + "_" + QString::fromLatin1(
+        QCryptographicHash::hash(CommonUtils::runtimeDataDirectory().toUtf8(), QCryptographicHash::Sha256).toHex().left(16));
+}
 
 SingleApplication::SingleApplication(int &argc, char **argv):QCoreApplication(argc,argv)
 {
@@ -43,8 +54,10 @@ bool SingleApplication::isStartUp()
     }
     else
     {
-        QStringList pathList = QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);
-        QString lockFilePath  = pathList[0] + "/PICOBusinessSuitData/lockfile";
+        const QString directory = CommonUtils::runtimeDataDirectory();
+        if (!QDir().mkpath(directory))
+            qFatal("Cannot create service runtime directory");
+        QString lockFilePath = directory + "/lockfile";
         m_instanceLock = new QLockFile(lockFilePath);
 
         if(!m_instanceLock->tryLock(1))
@@ -64,12 +77,12 @@ bool SingleApplication::isStartUp()
 void SingleApplication::initLocalServer()
 {
     m_localServer.setSocketOptions(QLocalServer::WorldAccessOption);
-    if(!m_localServer.listen(SINGLE_APP_NAME))
+    if(!m_localServer.listen(localServerName()))
     {
         if(m_localServer.serverError() == QAbstractSocket::AddressInUseError)
         {
-            QLocalServer::removeServer(SINGLE_APP_NAME);
-            if(!m_localServer.listen(SINGLE_APP_NAME))
+            QLocalServer::removeServer(localServerName());
+            if(!m_localServer.listen(localServerName()))
             {
                 qDebug() << "local server listen error: " << m_localServer.errorString() << Qt::endl;
             }
@@ -83,16 +96,16 @@ void SingleApplication::initLocalServer()
 
 bool SingleApplication::connectLocalServer()
 {
-    m_localSocket.connectToServer(SINGLE_APP_NAME);
+    m_localSocket.connectToServer(localServerName());
     if(m_localSocket.waitForConnected(CONNECT_TIMEOUT))
     {
-        qDebug() << "connnect to " << SINGLE_APP_NAME << " ok." << Qt::endl;
+        qDebug() << "connnect to " << localServerName() << " ok." << Qt::endl;
         return true;
     }
     else
     {
 
-        qDebug() << "connnect to " << SINGLE_APP_NAME << "error: " << m_localSocket.error() << Qt::endl;
+        qDebug() << "connnect to " << localServerName() << "error: " << m_localSocket.error() << Qt::endl;
         return false;
     }
 }

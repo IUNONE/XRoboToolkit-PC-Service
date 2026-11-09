@@ -1,5 +1,7 @@
-﻿// Implementation of TCP server worker for handling device connections
+// Implementation of TCP server worker for handling device connections
 #include <QUuid>
+#include <QNetworkInterface>
+#include "commonutils.h"
 #include <QSettings>
 #include <QCoreApplication>
 #include <QStandardPaths>
@@ -97,8 +99,7 @@ void DevConnSDK::TcpServerWorker::run()
 int DevConnSDK::TcpServerWorker::init()
 {
 
-    QString applicationPath = QCoreApplication::applicationDirPath();
-    QString settingPath = applicationPath + "/setting.ini";
+    QString settingPath = CommonUtils::settingsFilePath();
     QSettings settings(settingPath, QSettings::IniFormat);
 
     m_udpBroadCastPort = settings.value("TCP/BroadCastSendPort", BROADCAST_UDP_PORT).toInt();
@@ -123,25 +124,27 @@ void DevConnSDK::TcpServerWorker::onBraodCastTCPServer()
         return;
     }
 
-    QStringList ipList = Utils::getLocalIPv4AddressList();
-
-    foreach(const QString& ip, ipList)
+    for (const QNetworkInterface& interface : QNetworkInterface::allInterfaces())
     {
-        QString data = ip;
-        data = data.replace(ip.lastIndexOf('.') + 1, 3, "255");
-        qDebug() << data <<Qt::endl;
-        TcpMessage msg;
-        msg.m_head.cmd = UDP_PACKET_CMD_TCPIP;
-        msg.m_head.length = ip.toLocal8Bit().length();
-        msg.m_head.head = TCP_SERVER_HEAD_CODE;
-        msg.m_msg = ip.toLocal8Bit();
-        msg.m_tail.timeStamp = QDateTime::currentSecsSinceEpoch();
-        msg.m_tail.tail = TCP_CLIENT_MSG_TAIL_CODE;
-
-       if(m_broadCastUdp->writeDatagram(msg.toByteArray(), QHostAddress(data), m_udpBroadCastPort) < 0)
-       {
-           qDebug() << "onBraodCastMediaServer error!" << Qt::endl;
-       }
+        const auto flags = interface.flags();
+        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
+            || !(flags & QNetworkInterface::CanBroadcast) || (flags & QNetworkInterface::IsLoopBack))
+            continue;
+        for (const QNetworkAddressEntry& entry : interface.addressEntries())
+        {
+            if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol || entry.broadcast().isNull())
+                continue;
+            const QByteArray address = entry.ip().toString().toUtf8();
+            TcpMessage msg;
+            msg.m_head.cmd = UDP_PACKET_CMD_TCPIP;
+            msg.m_head.length = address.size();
+            msg.m_head.head = TCP_SERVER_HEAD_CODE;
+            msg.m_msg = address;
+            msg.m_tail.timeStamp = QDateTime::currentSecsSinceEpoch();
+            msg.m_tail.tail = TCP_CLIENT_MSG_TAIL_CODE;
+            if (m_broadCastUdp->writeDatagram(msg.toByteArray(), entry.broadcast(), m_udpBroadCastPort) < 0)
+                qWarning() << "TCP discovery broadcast failed:" << m_broadCastUdp->errorString();
+        }
     }
 }
 

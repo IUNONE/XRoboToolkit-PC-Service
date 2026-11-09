@@ -1,6 +1,12 @@
 //Implementation of PXR Enterprise Assistant Robot SDK client
 
 #include <memory>
+#include <algorithm>
+#include <atomic>
+#include <cstring>
+#include <cstdlib>
+#include <mutex>
+#include <thread>
 #include <sstream>
 #include <fstream>
 #include <grpcpp/grpcpp.h>
@@ -25,14 +31,10 @@ static unsigned GetCurrentPid()
 
 #endif
 
-#if defined(LINUX_x86) || defined(LINUX_aarch64)
+#if defined(__linux__) || defined(__APPLE__)
+#include <unistd.h>
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <thread>
-
-
-#define strcpy_s(dest, destsz, src) strncpy(dest, src, destsz)
+#include <cstdio>
 
 static void OutputDebug(const char* str)
 {
@@ -44,6 +46,15 @@ static unsigned GetCurrentPid()
     return getpid();
 }
 #endif
+// Fixed-size callback fields must always be NUL-terminated on every platform.
+template <size_t N>
+static void CopySdkString(char (&destination)[N], const std::string& source)
+{
+    const size_t length = (std::min)(source.size(), N - 1);
+    std::memcpy(destination, source.data(), length);
+    destination[length] = '\0';
+}
+
 struct StreamHelper
 {
     std::ostringstream stream;
@@ -158,8 +169,8 @@ public:
                     if(g_mask & PXREADeviceStateJson)
                     {
                         PXREADevStateJson dsj{};
-                        strcpy_s(dsj.devID,32,feedBack.devicestatejson().devid().c_str());
-                        strcpy_s(dsj.stateJson,16352,feedBack.devicestatejson().statejson().c_str());
+                        CopySdkString(dsj.devID, feedBack.devicestatejson().devid());
+                        CopySdkString(dsj.stateJson, feedBack.devicestatejson().statejson());
                         gOnPXREAClientCallback(g_context,PXREADeviceStateJson,0,&dsj);
                         //OutputDebug((StreamHelper()<<"device "<<dsj.devID<<"device state json "<<dsj.stateJson).str().c_str());
                     }
@@ -169,7 +180,7 @@ public:
                     if(g_mask & PXREADeviceCustomMessage)
                     {
                         PXREADevCustomMessage dcm{};
-                        strcpy_s(dcm.devID,32,feedBack.devblob().devid().c_str());
+                        CopySdkString(dcm.devID, feedBack.devblob().devid());
                         dcm.dataSize = feedBack.devblob().content().size();
                         dcm.dataPtr = feedBack.devblob().content().data();
                         gOnPXREAClientCallback(g_context,PXREADeviceCustomMessage,0,&dcm);
@@ -198,6 +209,7 @@ public:
             PXREAService::VRPid vrPid;
             vrPid.set_pid(GetCurrentPid());
             grpc::ClientContext feedbackCtx;
+            feedbackCtx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(2));
             google::protobuf::Empty ept;
             m_stub->CancelServerFeedback(&feedbackCtx,vrPid,&ept);
         }
@@ -279,7 +291,7 @@ private:
     grpc::ClientContext* m_feedbackCtx{nullptr};
     std::thread m_feedbackThread;
     std::unique_ptr<EAService::Stub> m_stub;
-    bool m_bChecking;
+    std::atomic<bool> m_bChecking{false};
     std::thread m_checkThread;
     std::mutex m_mtx;
 };
@@ -289,7 +301,8 @@ template <class T>
 T PXREAGetSDKClientConfig(const char* section, const char* key, const T& defaultValue)
 {
     inipp::Ini<char> ini;
-    std::ifstream ifs("PXREASetting.ini");
+    const char* configured = std::getenv("XRT_SDK_CONFIG_FILE");
+    std::ifstream ifs(configured && *configured ? configured : "PXREASetting.ini");
     ini.parse(ifs);
     T val = defaultValue;
     inipp::get_value(ini.sections[section], key, val);
@@ -297,6 +310,7 @@ T PXREAGetSDKClientConfig(const char* section, const char* key, const T& default
 }
 int PXREAInit(void* context,pfPXREAClientCallback cliCallback,unsigned mask)
 {
+    if (!cliCallback || g_pClient) return -1;
     OutputDebug("initialize sdk,connect");
     std::string addr = PXREAGetSDKClientConfig("Client","connectAddr",std::string("127.0.0.1"));
     std::string port = PXREAGetSDKClientConfig("Client","connectPort",std::string("60061"));
@@ -313,6 +327,7 @@ int PXREAInit(void* context,pfPXREAClientCallback cliCallback,unsigned mask)
 
 int PXREADeinit()
 {
+    if (!g_pClient) return 0;
     g_pClient->StopServiceCheck();
     g_pClient->WaitServiceCheckExit();
     g_pClient->StopWatchFeedback();

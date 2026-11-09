@@ -1,0 +1,28 @@
+name: Native tracking service
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja qtbase qt5compat grpc protobuf
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-5compat-dev libgrpc++-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc
+      - name: Configure native build
+        run: cmake -S RoboticsService -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DXRT_USE_SYSTEM_DEPENDENCIES=ON
+      - name: Build
+        run: cmake --build build/native --parallel 4
+      - name: Test simulated PICO and native SDK
+        run: ctest --test-dir build/native --output-on-failure

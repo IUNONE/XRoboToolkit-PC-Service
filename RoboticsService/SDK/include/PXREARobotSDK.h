@@ -4,6 +4,7 @@
  */
 #ifndef PXREACLIENTSDK_H
 #define PXREACLIENTSDK_H
+#include <stdint.h>
 #ifdef _WIN32
 #if defined(PXREACLIENTSDK_LIBRARY)
 #  define PXREACLIENTSDK_EXPORT __declspec(dllexport)
@@ -12,7 +13,7 @@
 #endif
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #if defined(PXREACLIENTSDK_LIBRARY)
 #  define PXREACLIENTSDK_EXPORT __attribute__((visibility("default")))
 #else
